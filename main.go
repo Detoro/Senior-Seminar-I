@@ -21,7 +21,7 @@ func main() {
 	case "init":
 		InitRepo()
 
-	case "cat":
+	case "status":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "usage: myvcs cat <hash>")
 			os.Exit(1)
@@ -45,9 +45,9 @@ func main() {
 			AddFile(file)
 		}
 
-	case "read-tree":
+	case "read":
 		if len(os.Args) < 3 {
-			fmt.Fprintf(os.Stderr, "Usage: myvcs read-tree <tree-SHA>")
+			fmt.Fprintf(os.Stderr, "Usage: myvcs read <tree-SHA>")
 			os.Exit(1)
 		}
 		ReadTree(os.Args[2])

@@ -12,14 +12,14 @@ import (
 )
 
 func CreateCommit(treeSHA string, parentSHA string, author string, committer string, message string) string {
-	timestamp := time.Now().Unix()
+	timestamp := time.Now().Format(time.RFC850)
 	var content bytes.Buffer
 	content.WriteString(fmt.Sprintf("tree %s\n", treeSHA))
 	if parentSHA != "" {
 		content.WriteString(fmt.Sprintf("parent %s\n", parentSHA))
 	}
-	content.WriteString(fmt.Sprintf("author %s %d +0000\n", author, timestamp)) //FIXME: Timezone
-	content.WriteString(fmt.Sprintf("committer %s %d +0000\n", committer, timestamp)) //FIXME: Timezone
+	content.WriteString(fmt.Sprintf("author %s %s +0000\n", author, timestamp)) //FIXME: Timezone
+	content.WriteString(fmt.Sprintf("committer %s %s +0000\n", committer, timestamp)) //FIXME: Timezone
 	content.WriteString(fmt.Sprintf("\n%s\n", message))
 
 	header := fmt.Sprintf("commit %d\x00", content.Len())
@@ -87,6 +87,4 @@ func Commit(message string) {
 		fmt.Fprintf(os.Stderr, "Error updating %s: %s\n", headPath, err)
 		os.Exit(1)
 	}
-
-	SendEmail("awakinola16@my.fisk.edu", "New Commit Notification", "A new commit has been made to your repository.")
 }
