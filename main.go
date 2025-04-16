@@ -73,9 +73,19 @@ func main() {
 		}
 		SwitchBranch(os.Args[2])
 
+	case "clone":
+		if len(os.Args) < 3 {
+			fmt.Fprintf(os.Stderr, "Usage: myvcs clone <url>")
+			os.Exit(1)
+		}
+		err := cloneRepo(os.Args[2])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Clone failed: %v\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)
 		os.Exit(1)
 	}
 }
-
