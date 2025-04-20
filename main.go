@@ -21,12 +21,26 @@ func main() {
 	case "init":
 		InitRepo()
 
-	case "status":
+	case "content":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "usage: myvcs cat <hash>")
 			os.Exit(1)
 		}
 		CatFile(os.Args[2])
+
+	case "status":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: myvcs staus <hash>")
+			os.Exit(1)
+		}
+		statusFile(os.Args[2])
+
+	case "files":
+		if len(os.Args) < 2 {
+			fmt.Println("usage: myvcs files")
+			os.Exit(1)
+		}
+		listFilesOnCurrentBranch()
 
 	case "hash":
 		if len(os.Args) < 3 {

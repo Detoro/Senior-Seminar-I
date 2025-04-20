@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"encoding/hex"
 )
 
 func ReadTree(filepath string) {
@@ -81,8 +82,23 @@ for i < len(data) {
 
 func CreateTree(entries []TreeEntry) string {
 var content bytes.Buffer
+// ... inside CreateTree
 for _, entry := range entries {
-	content.WriteString(fmt.Sprintf("%s %s\x00%s", entry.mode, entry.name, entry.sha1))
+    // Get the raw 20-byte SHA-1 hash from the hex string
+    sha1Bytes, err := hex.DecodeString(entry.sha1)
+    if err != nil {
+         // Handle error: invalid SHA1 string
+         fmt.Fprintf(os.Stderr, "Error decoding SHA-1 hex string %s: %s\n", entry.sha1, err)
+         os.Exit(1) // Or return error
+    }
+    if len(sha1Bytes) != 20 {
+         // Handle error: incorrect SHA-1 byte length
+         fmt.Fprintf(os.Stderr, "Error: Decoded SHA-1 has incorrect byte length: %d\n", len(sha1Bytes))
+         os.Exit(1) // Or return error
+    }
+
+    content.WriteString(fmt.Sprintf("%s %s\x00", entry.mode, entry.name))
+    content.Write(sha1Bytes) // Write the raw bytes
 }
 
 header := fmt.Sprintf("tree %d\x00", content.Len())
@@ -111,26 +127,38 @@ return sha1
 
 
 func WriteTree(dirPath string) ([]TreeEntry, error) {
-var entries []TreeEntry
+	var entries []TreeEntry
 
-files, err := os.ReadDir(dirPath)
-if err != nil {
-	return nil, err
-}
-
-for _, file := range files {
-	filePath := filepath.Join(dirPath, file.Name())
-	if file.IsDir() {
-		if file.Name() == ".myvcs" {
-			continue
-		}
-		sha1 := CreateTree(entries)
-		entries = append(entries, TreeEntry{mode: "40000", name: file.Name(), sha1: sha1})
-	} else {
-		sha1 := HashObject(filePath)
-		entries = append(entries, TreeEntry{mode: "100644", name: file.Name(), sha1: sha1})
+	files, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, err
 	}
-}
 
-return entries, nil
+	for _, file := range files {
+		filePath := filepath.Join(dirPath, file.Name())
+		if file.IsDir() {
+			if file.Name() == ".myvcs" {
+				continue
+			}
+
+			// RECURSIVELY call WriteTree for the subdirectory
+			subdirEntries, err := WriteTree(filePath)
+			if err != nil {
+				return nil, err // Propagate error
+			}
+
+			// Create the tree object for the subdirectory
+			subdirTreeSHA := CreateTree(subdirEntries)
+
+			// Add an entry for the subdirectory to the current directory's entries
+			entries = append(entries, TreeEntry{mode: "40000", name: file.Name(), sha1: subdirTreeSHA})
+
+		} else {
+			// File handling remains mostly the same, needs HashObject
+			sha1 := HashObject(filePath) // Assuming HashObject is correct
+			entries = append(entries, TreeEntry{mode: "100644", name: file.Name(), sha1: sha1})
+		}
+	}
+
+	return entries, nil
 }

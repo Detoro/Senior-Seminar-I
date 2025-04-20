@@ -10,46 +10,67 @@ import (
 )
 
 func HashObject(filePath string) string {
-	file, err := os.ReadFile(filePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading file: %s\n", err)
-		os.Exit(1)
-	}
+    fileContent, err := os.ReadFile(filePath) // Renamed to fileContent for clarity
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error reading file %s: %s\n", filePath, err)
+        os.Exit(1) // Or return "", err
+    }
 
-	stats, err := os.Stat(filePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error stating file: %s\n", err)
-		os.Exit(1)
-	}
+    // Get the exact size of the byte slice
+    contentSize := len(fileContent)
 
-	contentAndHeader := fmt.Sprintf("blob %d\x00%s", stats.Size(), string(file))
-	sha := sha1.Sum([]byte(contentAndHeader))
-	hash := fmt.Sprintf("%x", sha)
-	blobPath := fmt.Sprintf(".myvcs/objects/%s/%s", hash[:2], hash[2:])
+    // Construct the header as a byte slice
+    header := []byte(fmt.Sprintf("blob %d\x00", contentSize))
 
-	if _, err := os.Stat(blobPath); err == nil {
-		return hash
-	}
+    // Concatenate header bytes and file content bytes
+    fullContent := append(header, fileContent...)
 
-	var buffer bytes.Buffer
-	z := zlib.NewWriter(&buffer)
-	_, _ = z.Write([]byte(contentAndHeader))
-	z.Close()
+    // Calculate SHA-1 hash over the full byte slice content
+    sha := sha1.Sum(fullContent)
+    hash := fmt.Sprintf("%x", sha) // This hash is correct for this content
 
-	os.MkdirAll(filepath.Dir(blobPath), os.ModePerm)
-	f, err := os.Create(blobPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating file: %s\n", err)
-		os.Exit(1)
-	}
-	defer f.Close()
+    // Derive object path
+    objectPath := filepath.Join(".myvcs", "objects", hash[:2], hash[2:])
 
-	_, err = f.Write(buffer.Bytes())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing to file: %s\n", err)
-		os.Exit(1)
-	}
+    // Check if object already exists
+    if _, err := os.Stat(objectPath); err == nil {
+        return hash // Return the hash if the file exists
+    } else if !os.IsNotExist(err) {
+        // Handle actual error other than "does not exist"
+         fmt.Fprintf(os.Stderr, "Error stating object file %s: %s\n", objectPath, err)
+        os.Exit(1) // Or return "", err
+    }
 
-	return hash
+
+    // Compress the full byte slice content
+    var buffer bytes.Buffer
+    z := zlib.NewWriter(&buffer)
+    _, writeErr := z.Write(fullContent) // Write the full byte slice content
+    closeErr := z.Close() // Close the writer to flush compressed data
+
+    if writeErr != nil {
+         fmt.Fprintf(os.Stderr, "Error writing to zlib writer for %s: %s\n", filePath, writeErr)
+        os.Exit(1) // Or return "", writeErr
+    }
+    if closeErr != nil {
+         fmt.Fprintf(os.Stderr, "Error closing zlib writer for %s: %s\n", filePath, closeErr)
+        os.Exit(1) // Or return "", closeErr
+    }
+
+
+    // Ensure directory exists with more conventional permissions
+    dir := filepath.Dir(objectPath)
+    if err := os.MkdirAll(dir, 0755); err != nil { // Use 0755 permissions
+         fmt.Fprintf(os.Stderr, "Error creating object directory %s: %s\n", dir, err)
+        os.Exit(1) // Or return "", err
+    }
+
+    // Create and write the compressed data to the object file
+    if err := os.WriteFile(objectPath, buffer.Bytes(), 0644); err != nil { // Use 0644 for file permissions
+        fmt.Fprintf(os.Stderr, "Error writing object file %s: %s\n", objectPath, err)
+        os.Exit(1) // Or return "", err
+    }
+
+
+    return hash // Return the calculated hash
 }
-
